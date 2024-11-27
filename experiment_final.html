@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>음성학 실험 Phonetics Experiment</title>
+    <script src="jspsych/jspsych.js"></script>
+    <link href="jspsych/jspsych.css" rel="stylesheet" type="text/css" />
+    <script src="jspsych/plugin-html-keyboard-response.js"></script>
+    <script src="jspsych/plugin-html-button-response.js"></script>
+    <style>
+      .jspsych-btn {
+        font-size: 24px;
+        padding: 20px 40px;
+        margin: 10px;
+        width: 150px;
+        height: 60px;
+      }
+      .jspsych-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 80vh;
+      }
+      input[type="number"], input[type="text"] {
+        font-size: 20px;
+        padding: 5px;
+        width: 200px;
+        margin: 10px;
+      }
+      .button-row {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 10px;
+      }
+      .emoji {
+        font-size: 48px;
+        margin: 10px 0;
+      }
+    </style>
+  </head>
+  <body></body>
+  <script>
+    var jsPsych = initJsPsych({});
+    var timeline = [];
+    var responses = {};
+    var context = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playAudioWithFade(audioFile, context, fadePercentage) {
+      const source = context.createBufferSource();
+      const gainNode = context.createGain();
+      source.connect(gainNode).connect(context.destination);
+
+      fetch(audioFile)
+        .then((response) => response.arrayBuffer())
+        .then((arrayBuffer) => context.decodeAudioData(arrayBuffer))
+        .then((audioBuffer) => {
+          source.buffer = audioBuffer;
+
+          const fadeDuration = audioBuffer.duration * fadePercentage;
+          const audioDuration = audioBuffer.duration;
+
+          gainNode.gain.setValueAtTime(0, context.currentTime);
+          gainNode.gain.linearRampToValueAtTime(1, context.currentTime + fadeDuration);
+          gainNode.gain.setValueAtTime(1, context.currentTime + audioDuration - fadeDuration);
+          gainNode.gain.linearRampToValueAtTime(0, context.currentTime + audioDuration);
+
+          source.start();
+        });
+    }
+
+    // 시작 화면
+    var welcome_page = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <p style="font-size: 20px;">안녕하세요, 실험에 오신 것을 환영합니다.</p>
+        <p style="font-size: 20px; font-weight: bold;">실험 예상 소요시간은 약 10~15분입니다.</p>
+        <p style="font-size: 20px;">스페이스바를 눌러 시작하세요.</p>
+      `,
+      choices: [' ']
+    };
+    timeline.push(welcome_page);
+
+    // 성별 입력
+    var sex_page = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p style="font-size: 20px;">귀하의 성별을 선택해주세요.</p>
+      `,
+      choices: ['남성', '여성'],
+      on_finish: function(data) {
+        jsPsych.data.addProperties({ sex: data.response === 0 ? '남성' : '여성' });
+      }
+    };
+    timeline.push(sex_page);
+
+    // 나이 입력
+    var age_page = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p style="font-size: 20px;">귀하의 연령(만 나이 기준)을 입력해주세요.</p>
+        <input type="number" id="age-input" placeholder="나이를 입력하세요" />
+      `,
+      choices: ['확인'],
+      on_finish: function() {
+        const ageInput = document.getElementById('age-input')?.value || '미입력';
+        jsPsych.data.addProperties({ age: ageInput });
+      }
+    };
+    timeline.push(age_page);
+
+    // 헤드폰 착용 안내
+    var headphone_check = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <p style="font-size: 20px;">이 실험은 음성 인지 실험으로,</p>
+        <p style="font-size: 20px; color: red; font-weight: bold;">⚠️ 이어폰 또는 헤드폰을 반드시 착용해 주시기 바랍니다. ⚠️</p>
+        <p style="font-size: 20px;">조용한 환경에서 실험을 진행해 주세요.</p>
+        <p style="font-size: 20px;">스페이스바를 눌러 진행하세요.</p>
+      `,
+      choices: [' ']
+    };
+    timeline.push(headphone_check);
+
+    // Trial Test
+    var trial_file = { stimulus: 'SoundStimuli/trial.wav' };
+
+    var trial_block = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: function () {
+        var stim = trial_file.stimulus;
+        playAudioWithFade(stim, context, 0.13);
+        return `
+          <p style="font-size: 20px;">TRIAL TEST 연습</p>
+          <div class="emoji">🔊</div>
+          <p style="font-size: 20px; font-weight: bold;">🎧 볼륨 환경을 체크해 주세요.</p>
+          <p style="font-size: 20px;">들리는 소리와 가장 유사하다고 생각하는 한국어 모음을 골라주세요.</p>
+          <div class="button-row">
+            <button class="jspsych-btn">ㅜ</button>
+            <button class="jspsych-btn">ㅡ</button>
+            <button class="jspsych-btn">ㅣ</button>
+          </div>
+          <div class="button-row">
+            <button class="jspsych-btn">ㅟ</button>
+            <button class="jspsych-btn">ㅚ</button>
+            <button class="jspsych-btn">ㅐ/ㅔ</button>
+            <button class="jspsych-btn">ㅓ</button>
+          </div>
+        `;
+      },
+      choices: [],
+      on_load: function() {
+        const buttons = document.querySelectorAll('.jspsych-btn');
+        buttons.forEach((button) => {
+          button.addEventListener('click', function() {
+            const response = button.textContent;
+            jsPsych.finishTrial({ response });
+          });
+        });
+      },
+      on_finish: function (data) {
+        responses['Trial Stimulus'] = {
+          response: data.response
+        };
+      }
+    };
+    timeline.push(trial_block);
+
+    // 본 실험 안내
+    var instructions_page = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <p style="font-size: 20px;">이제 본 실험을 시작하겠습니다.</p>
+        <p style="font-size: 20px;">스페이스바를 눌러 진행하세요.</p>
+      `,
+      choices: [' ']
+    };
+    timeline.push(instructions_page);
+
+    // Stimuli 준비
+    var stimuli_files = [
+      "SoundStimuli/A1.wav", "SoundStimuli/A3.wav", "SoundStimuli/A5.wav", "SoundStimuli/A7.wav", "SoundStimuli/A9.wav", 
+      "SoundStimuli/A11.wav", "SoundStimuli/A13.wav", "SoundStimuli/A15.wav", 
+      "SoundStimuli/B2.wav", "SoundStimuli/B4.wav", "SoundStimuli/B6.wav", "SoundStimuli/B8.wav", "SoundStimuli/B10.wav", 
+      "SoundStimuli/B12.wav", "SoundStimuli/B14.wav", "SoundStimuli/B16.wav", 
+      "SoundStimuli/C3.wav", "SoundStimuli/C5.wav", "SoundStimuli/C7.wav", "SoundStimuli/C9.wav", "SoundStimuli/C11.wav", 
+      "SoundStimuli/C13.wav", "SoundStimuli/C15.wav", 
+      "SoundStimuli/D4.wav", "SoundStimuli/D6.wav", "SoundStimuli/D8.wav", "SoundStimuli/D10.wav", "SoundStimuli/D12.wav", 
+      "SoundStimuli/D14.wav", "SoundStimuli/D16.wav", 
+      "SoundStimuli/E5.wav", "SoundStimuli/E7.wav", "SoundStimuli/E9.wav", "SoundStimuli/E11.wav", "SoundStimuli/E13.wav", 
+      "SoundStimuli/E15.wav", 
+      "SoundStimuli/F6.wav", "SoundStimuli/F8.wav", "SoundStimuli/F10.wav", "SoundStimuli/F12.wav", "SoundStimuli/F14.wav", 
+      "SoundStimuli/F16.wav", 
+      "SoundStimuli/G7.wav", "SoundStimuli/G9.wav", "SoundStimuli/G11.wav", "SoundStimuli/G13.wav", "SoundStimuli/G15.wav", 
+      "SoundStimuli/H8.wav", "SoundStimuli/H10.wav", "SoundStimuli/H12.wav", "SoundStimuli/H14.wav", "SoundStimuli/H16.wav", 
+      "SoundStimuli/I9.wav", "SoundStimuli/I11.wav", "SoundStimuli/I13.wav", "SoundStimuli/I15.wav", 
+      "SoundStimuli/J10.wav", "SoundStimuli/J12.wav", "SoundStimuli/J14.wav", "SoundStimuli/J16.wav", 
+      "SoundStimuli/K11.wav", "SoundStimuli/K13.wav", "SoundStimuli/K15.wav", 
+      "SoundStimuli/L12.wav", "SoundStimuli/L14.wav", "SoundStimuli/L16.wav", 
+      "SoundStimuli/M13.wav", "SoundStimuli/M15.wav", 
+      "SoundStimuli/N14.wav", "SoundStimuli/N16.wav", 
+      "SoundStimuli/O15.wav", "SoundStimuli/P16.wav"
+    ];
+
+    var counter = 1;
+
+    var response_block = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: function () {
+        var stim = jsPsych.timelineVariable("stimulus");
+        playAudioWithFade(stim, context, 0.13);
+        return `
+          <p style="font-size: 20px;">Stimuli ${counter}</p>
+          <div class="emoji">🔊</div>
+          <p style="font-size: 20px;">들리는 소리와 가장 유사하다고 생각하는 한국어 모음을 골라주세요.</p>
+          <div class="button-row">
+            <button class="jspsych-btn">ㅜ</button>
+            <button class="jspsych-btn">ㅡ</button>
+            <button class="jspsych-btn">ㅣ</button>
+          </div>
+          <div class="button-row">
+          <button class="jspsych-btn">ㅟ</button>
+            <button class="jspsych-btn">ㅚ</button>
+            <button class="jspsych-btn">ㅐ/ㅔ</button>
+            <button class="jspsych-btn">ㅓ</button>
+          </div>
+        `;
+      },
+      choices: [],
+      on_load: function() {
+        const buttons = document.querySelectorAll('.jspsych-btn');
+        buttons.forEach((button) => {
+          button.addEventListener('click', function() {
+            const response = button.textContent;
+            jsPsych.finishTrial({ response });
+          });
+        });
+      },
+      on_finish: function (data) {
+        responses[`Stimulus ${counter}`] = {
+          response: data.response,
+          response_time: data.rt,
+          stimulus_file: jsPsych.timelineVariable("stimulus", true)
+        };
+        counter++;
+      }
+    };
+
+    var procedure = {
+      timeline: [response_block],
+      timeline_variables: stimuli_files.map(file => ({ stimulus: file })),
+      randomize_order: true
+    };
+    timeline.push(procedure);
+
+    // 종료 페이지
+    var debrief_block = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p style="font-size: 20px; font-weight: bold;">실험이 종료되었습니다. 참여해 주셔서 감사합니다.</p>
+        <p style="font-size: 20px;">하단에 전화번호를 작성하시면 추첨을 통해 선물을 드립니다.</p>
+        <p style="font-size: 20px;">(개인정보는 실험 종료 후 폐기합니다.)</p>
+        <input type="text" id="phone-input" placeholder="전화번호를 입력하세요" />
+      `,
+      choices: ['제출'],
+      on_finish: function() {
+        const phoneInput = document.getElementById('phone-input')?.value || '미입력';
+        jsPsych.data.addProperties({ phone: phoneInput });
+
+        var participant_data = {
+          Timestamp: new Date().toISOString(),
+          Sex: jsPsych.data.get().values()[0].sex,
+          Age: jsPsych.data.get().values()[0].age,
+          Phone: phoneInput,
+          'Trial Stimulus': responses['Trial Stimulus']?.response || '',
+          ...Object.entries(responses).reduce((acc, [key, value]) => {
+            if (key.startsWith('Stimulus')) {
+              acc[key] = value.stimulus_file;
+              acc[`Response ${key}`] = value.response;
+              acc[`RT ${key}`] = value.response_time;
+            }
+            return acc;
+          }, {})
+        };
+
+        fetch("https://script.google.com/macros/s/AKfycbyq-cPOiqvDtTaJNLlz-qE7icmLwZL-YIo5ySgztAiCkC9Ln9OMCOEDH7FOadmwmNvn/exec", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(participant_data),
+        })
+          .then((response) => response.text())
+          .then((result) => console.log("Data sent:", result))
+          .catch((error) => console.error("Error:", error));
+      }
+    };
+    timeline.push(debrief_block);
+
+    jsPsych.run(timeline);
+  </script>
+</html>
