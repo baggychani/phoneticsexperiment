@@ -2,6 +2,7 @@
 <html>
   <head>
     <title>음성학 실험 Phonetics Experiment</title>
+    <meta charset="UTF-8">
     <script src="jspsych/jspsych.js"></script>
     <link href="jspsych/jspsych.css" rel="stylesheet" type="text/css" />
     <script src="jspsych/plugin-html-keyboard-response.js"></script>
@@ -147,6 +148,7 @@
           <div class="emoji">🔊</div>
           <p style="font-size: 20px; font-weight: bold;">🎧 볼륨 환경을 체크해 주세요.</p>
           <p style="font-size: 20px;">들리는 소리와 가장 유사하다고 생각하는 한국어 모음을 골라주세요.</p>
+          <p style="font-size: 20px; font-weight: bold;">음성 재생이 완전히 끝난 이후에 골라주세요.</p>
           <div class="button-row">
             <button class="jspsych-btn">ㅜ</button>
             <button class="jspsych-btn">ㅡ</button>
@@ -265,50 +267,61 @@
     };
     timeline.push(procedure);
 
-    // 종료 페이지
-    var debrief_block = {
-      type: jsPsychHtmlButtonResponse,
-      stimulus: `
-        <p style="font-size: 20px; font-weight: bold;">실험이 종료되었습니다. 참여해 주셔서 감사합니다.</p>
-        <p style="font-size: 20px;">하단에 전화번호를 작성하시면 추첨을 통해 선물을 드립니다.</p>
-        <p style="font-size: 20px;">(개인정보는 실험 종료 후 폐기합니다.)</p>
-        <input type="text" id="phone-input" placeholder="전화번호를 입력하세요" />
-      `,
-      choices: ['제출'],
-      on_finish: function() {
-        const phoneInput = document.getElementById('phone-input')?.value || '미입력';
-        jsPsych.data.addProperties({ phone: phoneInput });
+   // 종료 페이지
+var debrief_block = {
+  type: jsPsychHtmlButtonResponse,
+  stimulus: `
+    <p style="font-size: 20px; font-weight: bold;">실험이 종료되었습니다. 참여해 주셔서 감사합니다.</p>
+    <p style="font-size: 20px;">하단에 전화번호를 작성하시면 추첨을 통해 선물을 드립니다.</p>
+    <p style="font-size: 20px;">(개인정보는 실험 종료 후 폐기합니다.)</p>
+    <input type="text" id="phone-input" placeholder="전화번호를 입력하세요" />
+  `,
+  choices: ['제출'],
+  on_finish: function() {
+    const phoneInput = document.getElementById('phone-input')?.value || '미입력';
+    jsPsych.data.addProperties({ phone: phoneInput });
 
-        var participant_data = {
-          Timestamp: new Date().toISOString(),
-          Sex: jsPsych.data.get().values()[0].sex,
-          Age: jsPsych.data.get().values()[0].age,
-          Phone: phoneInput,
-          'Trial Stimulus': responses['Trial Stimulus']?.response || '',
-          ...Object.entries(responses).reduce((acc, [key, value]) => {
-            if (key.startsWith('Stimulus')) {
-              acc[key] = value.stimulus_file;
-              acc[`Response ${key}`] = value.response;
-              acc[`RT ${key}`] = value.response_time;
-            }
-            return acc;
-          }, {})
-        };
-
-        fetch("https://script.google.com/macros/s/AKfycbyq-cPOiqvDtTaJNLlz-qE7icmLwZL-YIo5ySgztAiCkC9Ln9OMCOEDH7FOadmwmNvn/exec", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(participant_data),
-        })
-          .then((response) => response.text())
-          .then((result) => console.log("Data sent:", result))
-          .catch((error) => console.error("Error:", error));
-      }
+    // 데이터 수집
+    var participant_data = {
+      Timestamp: new Date().toISOString(), // 현재 시간
+      Sex: jsPsych.data.get().values()[0].sex, // 성별
+      Age: jsPsych.data.get().values()[0].age, // 나이
+      French: jsPsych.data.get().values()[0].french_experience, // 프랑스어 학습 여부
+      Phone: phoneInput, // 입력받은 전화번호
+      ...Object.entries(responses).reduce((acc, [key, value]) => {
+        acc[key] = value.response; // Stimuli 응답
+        acc[`${key} RT`] = value.response_time; // RT(응답 시간)
+        return acc;
+      }, {})
     };
-    timeline.push(debrief_block);
 
-    jsPsych.run(timeline);
-  </script>
-</html>
+    // Google Apps Script로 데이터 전송
+    fetch("https://script.google.com/macros/s/AKfycbz4iZ64iCxyusoSOijeLTb9bH98sHfN6AhKvaXTV87GAfjytN6iiw4Ld85qUoSe_pyG4g/exec", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(participant_data),
+    })
+      .then((response) => response.text())
+      .then((result) => {
+        console.log("Data sent successfully:", result);
+        jsPsych.endExperiment(`
+          <p style="font-size: 20px; font-weight: bold;">데이터 저장이 완료되었습니다.</p>
+          <p style="font-size: 20px;">실험에 참여해 주셔서 감사합니다!</p>
+          <p style="font-size: 20px;">이제 창을 닫으셔도 좋습니다.</p>
+        `);
+      })
+      .catch((error) => {
+        console.error("Error sending data:", error);
+        jsPsych.endExperiment(`
+          <p style="font-size: 20px; color: red; font-weight: bold;">데이터 저장에 실패했습니다.</p>
+          <p style="font-size: 20px;">인터넷 연결을 확인하고 다시 시도해 주세요.</p>
+        `);
+      });
+  }
+};
+timeline.push(debrief_block);
+
+// 실험 실행
+jsPsych.run(timeline);
