@@ -108,6 +108,19 @@
     };
     timeline.push(age_page);
 
+    // 프랑스어 학습 여부
+    var french_page = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p style="font-size: 20px;">귀하는 프랑스어를 제2외국어로 학습한 경험이 있습니까?</p>
+      `,
+      choices: ['예', '아니오'],
+      on_finish: function(data) {
+        jsPsych.data.addProperties({ french_experience: data.response === 0 ? '예' : '아니오' });
+      }
+    };
+    timeline.push(french_page);
+
     // 헤드폰 착용 안내
     var headphone_check = {
       type: jsPsychHtmlKeyboardResponse,
